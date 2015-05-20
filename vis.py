@@ -13,6 +13,7 @@ from pygame.locals import *
 import time
 import alsaaudio as aa
 import numpy as np
+import threading
 
 CHUNK_SIZE = 1024  # Use a multiple of 8
 
@@ -242,10 +243,20 @@ mean = [12.0 for _ in range(90)]
 std = [1.5 for _ in range(90)]
 frequency_limits = calculate_channel_frequency(20,
                                                22000)
+data = None
 
+def pull_data():
+    global data, audio_input
+    while True:
+        data = audio_input.read()
+
+pullthread = threading.Thread(target=pull_data)
+pullthread.daemon = True
+pullthread.start()
+
+time.sleep(1)
 
 while True:
-    data = audio_input.read()
     matrix = calculate_levels(data, sample_rate, frequency_limits)
     for event in pygame.event.get():
         if event.type == QUIT:
