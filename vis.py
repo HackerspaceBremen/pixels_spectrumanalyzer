@@ -243,7 +243,7 @@ mean = [12.0 for _ in range(90)]
 std = [1.5 for _ in range(90)]
 frequency_limits = calculate_channel_frequency(20,
                                                22000)
-data = None
+data = audio_input.read()
 
 def pull_data():
     global data, audio_input
