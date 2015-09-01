@@ -31,7 +31,7 @@ columns_l=[0 for _ in range(90)]
 actual_columns_r=[0 for _ in range(90)]
 columns_r=[0 for _ in range(90)]
 c=0.0
-decay=.7
+decay=.4
 def wheel_color(position):
     """Get color from wheel value (0 - 384)."""
     if position < 0:
@@ -60,14 +60,14 @@ dsDisplay = led.dsclient.DisplayServerClientDisplay('localhost', 8123, fallbackS
 simDisplay = led.sim.SimDisplay(dsDisplay.size())
 pixelSurface = pygame.Surface(dsDisplay.size())
 fftSurface = pygame.Surface(dsDisplay.size())
-fftPixarray = pygame.PixelArray (fftSurface)
+#fftPixarray = pygame.PixelArray (fftSurface)
 font = pygame.font.Font(None, 12)
 
 def calculate_channel_frequency(min_frequency, max_frequency):
     '''Calculate frequency values for each channel, taking into account custom settings.'''
 
     # How many channels do we need to calculate the frequency for
-    channel_length = 90
+    channel_length = 40
         
     logging.debug("Calculating frequencies for %d channels.", channel_length)
     octaves = (np.log(max_frequency / min_frequency)) / np.log(2)
@@ -78,7 +78,7 @@ def calculate_channel_frequency(min_frequency, max_frequency):
     
     frequency_limits.append(min_frequency)
     logging.debug("Custom channel frequencies are not being used")
-    for i in range(1, 90 + 1):
+    for i in range(1, 40 + 1):
         frequency_limits.append(frequency_limits[-1]*2**octaves_per_channel)
     for i in range(0, channel_length):
         frequency_store.append((frequency_limits[i], frequency_limits[i + 1]))
@@ -121,8 +121,8 @@ def calculate_levels(data, sample_rate, frequency_limits,use_second_channel=0):
     
     power = np.abs(fourier) ** 2
 
-    matrix = [0 for i in range(90)]
-    for i in range(90):
+    matrix = [0 for i in range(40)]
+    for i in range(40):
         matrix[i] = np.log10(np.sum(power[piff(frequency_limits[i][0], sample_rate)
                                           :piff(frequency_limits[i][1], sample_rate):1]))
 
@@ -132,27 +132,28 @@ def calculate_levels(data, sample_rate, frequency_limits,use_second_channel=0):
 matrix_l = [0 for _ in range(90)]
 matrix_r = [0 for _ in range(90)]
 
-def display_column(col=0,height=[0.0, 0.0],color=Color(50,50,0)):
+def display_column(col=0,height=0.0,color=Color(50,50,0)):
         global c
         global columns_l
         global actual_columns_l
-        global fftPixarray
+        global fftSurface
         
         
-        height[0] = height[0] - 9.0
-        height[0] = height[0] / 5
-        if height[0] < .05:
-                height[0] = .05
-        elif height[0] > 1.0:
-                height[0] = 1.0
+        height = height - 9.0
+        height = height / 5
+        if height < .05:
+                height = .05
+        elif height > 1.0:
+                height = 1.0
                 
-        if height[0] < columns_l[col]:
+        if height < columns_l[col]:
                 columns_l[col] = columns_l[col] * decay
-                height[0] = columns_l[col]
+                height = columns_l[col]
         else:
-                columns_l[col] = height[0]
-        actual_columns_l[col]=int(round(height[0]*10))
+                columns_l[col] = height
+        actual_columns_l[col]=abs(int(round(height*20))-20)
         
+        '''
         height[1] = height[1] - 9.0
         height[1] = height[1] / 5
         if height[1] < .05:
@@ -166,10 +167,13 @@ def display_column(col=0,height=[0.0, 0.0],color=Color(50,50,0)):
         else:
                 columns_r[col] = height[1]
         actual_columns_r[col]=int(round(height[1]*10))
-        
+        '''
         
         c=int(round(col*4.26))
         color = wheel_color(int(c))
+        pygame.draw.line(fftSurface,color,(col,actual_columns_l[col]),(col,89),1)
+        
+        '''
         if actual_columns_l[col] > 1:
             fftPixarray[col][9]=color
         else:
@@ -181,7 +185,7 @@ def display_column(col=0,height=[0.0, 0.0],color=Color(50,50,0)):
         if actual_columns_l[col] > 3:
             fftPixarray[col][7]=color
         else:
-            fftPixarray[col][7]=Color(0,0,0)
+            http://divbyzero.de/va.plsfftPixarray[col][7]=Color(0,0,0)
         if actual_columns_l[col] > 4:
             fftPixarray[col][6]=color
         else:
@@ -210,7 +214,8 @@ def display_column(col=0,height=[0.0, 0.0],color=Color(50,50,0)):
             fftPixarray[col][0]=color
         else:
             fftPixarray[col][0]=Color(0,0,0)
-
+            '''
+'''http://divbyzero.de/va.pls
         if actual_columns_r[col] > 1:
             fftPixarray[col][10]=color
         else:
@@ -251,7 +256,7 @@ def display_column(col=0,height=[0.0, 0.0],color=Color(50,50,0)):
             fftPixarray[col][19]=color
         else:
             fftPixarray[col][19]=Color(0,0,0)
-
+'''
 
 sample_rate=44100
 num_channels=2
@@ -308,12 +313,13 @@ while True:
 
     pixelSurface.fill(pygame.Color(0, 0, 0))
     fftSurface.fill(pygame.Color(0, 0, 0))
-    fps = font.render("FPS: {:.1f}".format(fpsClock.get_fps()), True, pygame.Color("#ff0000"))
+    #fps = font.render("FPS: {:.1f}".format(fpsClock.get_fps()), True, pygame.Color("#ff0000"))
     #pixelSurface.blit(fps, (0,0))
-    for i in range(0, 89):
-        display_column(i,[matrix_r[i],matrix_l[i]])
-    
-    pixelSurface.blit(fftPixarray.make_surface(), (0,0))
+    for i in range(0, 39):
+        display_column(i,matrix_r[i])
+    for i in range(50, 89):
+        display_column(i,matrix_r[i-50])    
+    pixelSurface.blit(fftSurface, (0,0))
     
     
     
