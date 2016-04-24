@@ -14,54 +14,7 @@ import time
 import alsaaudio as aa
 import numpy as np
 import threading
-
-CHUNK_SIZE = 1024  # Use a multiple of 8
-
-speed = 30
-
-fallbackSize=(90, 20)
-
-pygame.init()
-pygame.display.set_mode()
-
-fpsClock = pygame.time.Clock()
-
-actual_columns_l=[0 for _ in range(90)]
-columns_l=[0 for _ in range(90)]
-actual_columns_r=[0 for _ in range(90)]
-columns_r=[0 for _ in range(90)]
-c=0.0
-decay=.4
-def wheel_color(position):
-    """Get color from wheel value (0 - 384)."""
-    if position < 0:
-        position = 0
-    if position > 384:
-        position = 384
-
-    if position < 128:
-        r = 127 - position % 128
-        g = position % 128
-        b = 0
-    elif position < 256:
-        g = 127 - position % 128
-        b = position % 128
-        r = 0
-    else:
-        b = 127 - position % 128
-        r = position % 128
-        g = 0
-
-    return pygame.Color(r, g, b)
-
-
-
-dsDisplay = led.dsclient.DisplayServerClientDisplay('localhost', 8123, fallbackSize)
-simDisplay = led.sim.SimDisplay(dsDisplay.size())
-pixelSurface = pygame.Surface(dsDisplay.size())
-fftSurface = pygame.Surface(dsDisplay.size())
-#fftPixarray = pygame.PixelArray (fftSurface)
-font = pygame.font.Font(None, 12)
+from multiprocessing import Process, Pipe
 
 def calculate_channel_frequency(min_frequency, max_frequency):
     '''Calculate frequency values for each channel, taking into account custom settings.'''
@@ -129,8 +82,33 @@ def calculate_levels(data, sample_rate, frequency_limits,use_second_channel=0):
     return matrix
 
 
-matrix_l = [0 for _ in range(90)]
-matrix_r = [0 for _ in range(90)]
+
+
+def wheel_color(position):
+    """Get color from wheel value (0 - 384)."""
+    if position < 0:
+        position = 0
+    if position > 384:
+        position = 384
+
+    if position < 128:
+        r = 127 - position % 128
+        g = position % 128
+        b = 0
+    elif position < 256:
+        g = 127 - position % 128
+        b = position % 128
+        r = 0
+    else:
+        b = 127 - position % 128
+        r = position % 128
+        g = 0
+
+    return pygame.Color(r, g, b)
+
+
+
+
 
 def display_column(col=0,height=0.0,color=Color(50,50,0)):
         global c
@@ -171,7 +149,7 @@ def display_column(col=0,height=0.0,color=Color(50,50,0)):
         
         c=int(round(col*4.26))
         color = wheel_color(int(c))
-        pygame.draw.line(fftSurface,color,(col,actual_columns_l[col]),(col,89),1)
+        pygame.draw.line(fftSurface,color,(col,actual_columns_l[col]),(col,19),1)
         
         '''
         if actual_columns_l[col] > 1:
@@ -258,73 +236,110 @@ def display_column(col=0,height=0.0,color=Color(50,50,0)):
             fftPixarray[col][19]=Color(0,0,0)
 '''
 
-sample_rate=44100
-num_channels=2
-audio_input =aa.PCM(aa.PCM_CAPTURE,aa.PCM_NORMAL)
-audio_input.setchannels(num_channels)
-audio_input.setrate(sample_rate)
-audio_input.setformat(aa.PCM_FORMAT_S16_LE)
-audio_input.setperiodsize(CHUNK_SIZE)
-mean = [12.0 for _ in range(90)]
-std = [1.5 for _ in range(90)]
-frequency_limits = calculate_channel_frequency(80,
-                                               10000)
-data = audio_input.read()
 
-def pull_data():
-    global data, audio_input
+
+'''data = audio_input.read()'''
+
+def pull_data(pipe,sample_rate,num_channels,chunk_size):
+    audio_input =aa.PCM(aa.PCM_CAPTURE,aa.PCM_NORMAL)
+    audio_input.setchannels(num_channels)
+    audio_input.setrate(sample_rate)
+    audio_input.setformat(aa.PCM_FORMAT_S16_LE)
+    audio_input.setperiodsize(chunk_size)
     while True:
-        data = audio_input.read()
+        pipe.send(audio_input.read())
+        time.sleep(0.1)
 
-pullthread = threading.Thread(target=pull_data)
+'''pullthread = threading.Thread(target=pull_data)
 pullthread.daemon = True
 pullthread.start()
 
 time.sleep(1)
+'''
 
-
-def left_fft():
-    global data,matrix_l,sample_rate,frequency_limits
+def left_fft(pipe,sample_rate,frequency_limits):
     while True:
-        matrix_l = calculate_levels(data, sample_rate, frequency_limits,0)
+        pipe.send(calculate_levels(pipe.recv(), sample_rate, frequency_limits,0))
         time.sleep(0.1)
-
+'''
 left_fft_thread = threading.Thread(target=left_fft)
 left_fft_thread.daemon = True
 left_fft_thread.start()
+'''
 
-
-def right_fft():
-    global data,matrix_r,sample_rate,frequency_limits
+def right_fft(pipe,sample_rate,frequency_limits):
     while True:
-        matrix_r = calculate_levels(data, sample_rate, frequency_limits,1)
+        pipe.send(calculate_levels(pipe.recv(), sample_rate, frequency_limits,1))
         time.sleep(0.1)
-
+'''
 right_fft_thread = threading.Thread(target=right_fft)
 right_fft_thread.daemon = True
 right_fft_thread.start()
+'''
 
-while True:
-    #matrix = calculate_levels(data, sample_rate, frequency_limits)
-    for event in pygame.event.get():
-        if event.type == QUIT:
-            pygame.quit()
-            sys.exit()
 
-    pixelSurface.fill(pygame.Color(0, 0, 0))
-    fftSurface.fill(pygame.Color(0, 0, 0))
-    #fps = font.render("FPS: {:.1f}".format(fpsClock.get_fps()), True, pygame.Color("#ff0000"))
-    #pixelSurface.blit(fps, (0,0))
-    for i in range(0, 39):
-        display_column(i,matrix_r[i])
-    for i in range(50, 89):
-        display_column(i,matrix_r[i-50])    
-    pixelSurface.blit(fftSurface, (0,0))
+
+
+if __name__ == '__main__':
+    frequency_limits = calculate_channel_frequency(80, 10000)
+    CHUNK_SIZE = 1024  # Use a multiple of 8
+
+    speed = 30
+
+    fallbackSize=(90, 20)
+
+    pygame.init()
+    pygame.display.set_mode()
+
+    fpsClock = pygame.time.Clock()
+
+    actual_columns_l=[0 for _ in range(90)]
+    columns_l=[0 for _ in range(90)]
+    actual_columns_r=[0 for _ in range(90)]
+    columns_r=[0 for _ in range(90)]
+    c=0.0
+    decay=.4
+
+
+    dsDisplay = led.dsclient.DisplayServerClientDisplay('localhost', 8123, fallbackSize)
+    simDisplay = led.sim.SimDisplay(dsDisplay.size())
+    pixelSurface = pygame.Surface(dsDisplay.size())
+    fftSurface = pygame.Surface(dsDisplay.size())
+    #fftPixarray = pygame.PixelArray (fftSurface)
+    font = pygame.font.Font(None, 12)
+    audio_parent_conn,audio_child_conn = Pipe()
+    fft_parent_conn, fft_child_conn = Pipe()
+    pullthread = Process(target=pull_data,args=(audio_child_conn,44100,2,CHUNK_SIZE,))
+    left_fft_thread = Process(target=left_fft,args=(fft_child_conn,44100,frequency_limits))
     
+    pullthread.daemon = True
+    pullthread.start()
     
-    
-    
-    dsDisplay.update(pixelSurface)
-    simDisplay.update(pixelSurface)
-    time.sleep(0.1)
-    #fpsClock.tick(30)
+    left_fft_thread.daemon = True
+    left_fft_thread.start()
+    while True:
+        #matrix = calculate_levels(data, sample_rate, frequency_limits)
+        for event in pygame.event.get():
+            if event.type == QUIT:
+                pygame.quit()
+                sys.exit()
+        
+        fft_parent_conn.send(audio_parent_conn.recv())
+        pixelSurface.fill(pygame.Color(0, 0, 0))
+        fftSurface.fill(pygame.Color(0, 0, 0))
+        #fps = font.render("FPS: {:.1f}".format(fpsClock.get_fps()), True, pygame.Color("#ff0000"))
+        #pixelSurface.blit(fps, (0,0))
+        matrix_r=fft_parent_conn.recv()
+        for i in range(0, 39):
+            display_column(i,matrix_r[i])
+        for i in range(50, 89):
+            display_column(i,matrix_r[i-50])    
+        pixelSurface.blit(fftSurface, (0,0))
+        
+        
+        
+        
+        dsDisplay.update(pixelSurface)
+        simDisplay.update(pixelSurface)
+        time.sleep(0.1)
+        #fpsClock.tick(30)
